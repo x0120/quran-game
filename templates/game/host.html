@@ -1,0 +1,444 @@
+{% extends 'game/base.html' %}
+{% block content %}
+<div class="w-full max-w-4xl mx-auto space-y-6">
+    <div id="host-header" class="theme-card rounded-3xl p-4 md:p-6 relative overflow-hidden min-h-[360px] md:min-h-[380px]">
+        <div class="absolute inset-x-0 top-0 h-40 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_68%)] pointer-events-none"></div>
+
+        <div class="absolute top-4 left-4 md:top-6 md:left-6 z-20 group">
+            <button type="button" onclick="document.getElementById('teacher-secret-answer').classList.toggle('opacity-0')" class="text-slate-400 hover:text-amber-200 transition-colors p-2 md:p-3 rounded-full border border-slate-700/80 bg-slate-950/50 hover:bg-slate-900/70" title="إظهار الإجابة سراً">
+                    <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            </button>
+            <div id="teacher-secret-answer" class="opacity-0 transition-opacity absolute top-full mt-2 left-0 bg-slate-950 border border-amber-300/30 px-6 py-2 rounded-xl text-3xl font-black text-amber-100 shadow-[0_0_20px_rgba(184,150,88,0.2)] pointer-events-none z-50">
+                ؟
+            </div>
+        </div>
+
+        <button type="button" onclick="cancelGame()" class="theme-btn-danger absolute top-4 right-4 md:top-6 md:right-6 z-20 shrink-0 px-4 py-2 md:px-5 md:py-3 rounded-xl transition-all font-bold">
+            إلغاء اللعبة
+        </button>
+
+        <div class="relative z-10 w-full min-h-[320px] md:min-h-[340px] flex justify-center">
+            <div class="w-full max-w-md mx-auto flex flex-col items-center justify-center text-center px-3 pt-20 md:pt-10 pb-4">
+                <h2 class="text-xl md:text-3xl font-bold text-slate-100 leading-tight">انضموا للعبة عبر الرمز</h2>
+                <div class="mt-4 inline-flex justify-center" dir="ltr">
+                    <span class="text-5xl md:text-6xl font-black tracking-[0.22em] md:tracking-[0.28em] text-amber-100 drop-shadow-[0_0_18px_rgba(184,150,88,0.26)] pl-[0.22em] md:pl-[0.28em]">
+                        {{ session.code }}
+                    </span>
+                </div>
+
+                <div class="w-full max-w-xs mt-6 md:mt-8">
+                    <div class="theme-card-strong px-6 py-5 rounded-2xl text-center">
+                        <span class="block text-base md:text-lg theme-muted mb-2">الطلاب المنضمين</span>
+                        <span id="player-count" class="text-4xl md:text-5xl font-black text-slate-100">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="waiting-screen" class="theme-card rounded-3xl p-8 text-center">
+        <div class="flex flex-wrap justify-center gap-4 mb-8" id="players-list"></div>
+        <button onclick="startGame()" class="theme-btn-primary w-full md:w-auto px-12 py-4 rounded-xl font-black text-xl transition-all mx-auto" id="start-btn" style="display:none;">ابدأ اللعبة!</button>
+    </div>
+
+    <div id="active-screen" class="theme-card rounded-3xl p-8" style="display: none;">
+        <div class="theme-panel flex justify-between items-center rounded-xl p-4 mb-8">
+            <span class="text-lg text-slate-200 font-bold">عدد المجيبين:</span>
+            <span id="answer-count" class="text-2xl font-black text-amber-200">0</span>
+        </div>
+
+        <div class="mb-12 flex justify-center">
+            <div class="theme-card-strong min-w-[120px] rounded-3xl px-8 py-5 text-center">
+                <div id="host-timer-label" class="text-sm font-bold theme-muted mb-2">الوقت المتبقي</div>
+                <div id="host-timer" class="text-5xl md:text-6xl font-black text-amber-100 tabular-nums">0</div>
+                <div id="host-timer-unit" class="text-xs font-bold text-slate-500 mt-2">ثانية</div>
+            </div>
+        </div>
+
+        <div id="flower-container" class="relative w-80 h-80 md:w-[500px] md:h-[500px] mx-auto my-12 flex items-center justify-center">
+            <div id="flower-center" class="w-24 h-24 md:w-32 md:h-32 bg-white rounded-full z-10 flex items-center justify-center text-6xl md:text-8xl font-black text-slate-900 shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all duration-500">
+                ؟
+            </div>
+            <div id="flower-petals" class="absolute inset-0 pointer-events-none"></div>
+        </div>
+
+    </div>
+
+    <div id="results-screen" class="theme-card rounded-3xl p-8" style="display: none;">
+        <h2 class="theme-title text-3xl font-black text-center mb-8">الترتيب النهائي</h2>
+        <div id="host-winner-spotlight" class="winner-spotlight hidden rounded-3xl p-5 md:p-6 mb-6"></div>
+        <div id="leaderboard" class="space-y-4"></div>
+        <div class="mt-8 pt-6 border-t border-slate-200">
+            <a href="{% url 'host_setup' %}" class="theme-btn-outline block w-full py-4 text-center rounded-xl font-black text-xl transition-all">إنشاء تحدي جديد</a>
+        </div>
+    </div>
+
+    <div id="cancelled-screen" class="theme-card rounded-3xl p-8 text-center border border-red-400/20" style="display: none;">
+        <h2 class="text-3xl font-black text-red-200 mb-4">تم إلغاء اللعبة</h2>
+        <p class="text-slate-300 mb-8">تم إشعار جميع الطلاب، ويمكنك إنشاء غرفة جديدة متى شئت.</p>
+        <a href="{% url 'host_setup' %}" class="theme-btn-accent block w-full py-4 rounded-xl font-black text-xl transition-all">إنشاء لعبة جديدة</a>
+    </div>
+</div>
+
+<script>
+    const sessionCode = "{{ session.code }}";
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const gameSocket = new WebSocket(`${wsScheme}://${window.location.host}/ws/game/${sessionCode}/`);
+    let timerInterval = null;
+    let timerStateKey = null;
+    let currentQuestionId = null;
+    let timerRunningForQuestionId = null;
+    let revealRequestSent = false;
+    let audioContext = null;
+    let lastCountdownSoundSecond = null;
+
+    gameSocket.onopen = function() {
+        gameSocket.send(JSON.stringify({ action: 'request_state' }));
+    };
+
+    gameSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'state_update') {
+            updateHostUI(data.state);
+        }
+    };
+
+    function getAudioContext() {
+        if (!window.AudioContext && !window.webkitAudioContext) {
+            return null;
+        }
+
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioContextClass();
+        }
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
+        return audioContext;
+    }
+
+    function unlockAudio() {
+        getAudioContext();
+    }
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    function playCountdownSound(second) {
+        const ctx = getAudioContext();
+        if (!ctx || second <= 0 || second > 10 || lastCountdownSoundSecond === second) return;
+
+        lastCountdownSoundSecond = second;
+
+        const now = ctx.currentTime;
+        const master = ctx.createGain();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = second <= 3 ? 'square' : 'triangle';
+        osc.frequency.setValueAtTime(second <= 3 ? 980 : 740, now);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(second <= 3 ? 0.12 : 0.09, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+        master.gain.setValueAtTime(1, now);
+
+        osc.connect(gain);
+        gain.connect(master);
+        master.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.19);
+    }
+
+    function startGame() {
+        gameSocket.send(JSON.stringify({ action: 'start_game' }));
+    }
+
+    function revealQuestion() {
+        if (revealRequestSent || currentQuestionId === null) return;
+        revealRequestSent = true;
+        gameSocket.send(JSON.stringify({ action: 'reveal_question' }));
+    }
+
+    function cancelGame() {
+        if (!confirm('هل تريد إلغاء هذه اللعبة؟')) return;
+        clearInterval(timerInterval);
+        gameSocket.send(JSON.stringify({ action: 'cancel_game' }));
+    }
+
+    function startTimer(seconds, timerKey) {
+        clearInterval(timerInterval);
+        timerStateKey = timerKey;
+        const timerDisplay = document.getElementById('host-timer');
+        const timerLabel = document.getElementById('host-timer-label');
+        const timerUnit = document.getElementById('host-timer-unit');
+        let current = seconds;
+        lastCountdownSoundSecond = null;
+        const isRevealTimer = timerKey && timerKey.startsWith('revealed-');
+        timerLabel.textContent = isRevealTimer ? 'السؤال التالي بعد' : 'الوقت المتبقي';
+        timerUnit.textContent = 'ثانية';
+        timerDisplay.textContent = current;
+        if (!isRevealTimer) {
+            playCountdownSound(current);
+        } else {
+            lastCountdownSoundSecond = null;
+        }
+
+        timerInterval = setInterval(() => {
+            current--;
+            timerDisplay.textContent = Math.max(current, 0);
+            if (!isRevealTimer) {
+                playCountdownSound(current);
+            }
+            if (current <= 0) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                const finishedKey = timerStateKey;
+                timerStateKey = null;
+                lastCountdownSoundSecond = null;
+                if (finishedKey && finishedKey.startsWith('active-')) {
+                    gameSocket.send(JSON.stringify({ action: 'request_state' }));
+                } else {
+                    gameSocket.send(JSON.stringify({ action: 'request_state' }));
+                }
+            }
+        }, 1000);
+    }
+
+    function renderHostQuestion(state) {
+        if (!state.current_question) return;
+
+        currentQuestionId = state.current_question.id;
+        timerRunningForQuestionId = null;
+        revealRequestSent = state.state === 'revealed';
+
+        const correctChoice = state.current_question.choices.find(c => c.is_correct);
+        if (correctChoice) {
+            const secretDiv = document.getElementById('teacher-secret-answer');
+            secretDiv.textContent = correctChoice.text;
+            secretDiv.classList.add('opacity-0');
+        }
+
+        const center = document.getElementById('flower-center');
+        center.textContent = '؟';
+        center.className = 'w-24 h-24 md:w-32 md:h-32 bg-white rounded-full z-10 flex items-center justify-center text-6xl md:text-8xl font-black text-slate-900 shadow-[0_0_30px_rgba(255,255,255,0.5)] transition-all duration-500';
+
+        const attributes = state.current_question.text.split('،').map(s => s.trim());
+        const petalsDiv = document.getElementById('flower-petals');
+        petalsDiv.innerHTML = '';
+
+        const colors = [
+            'bg-pink-500', 'bg-yellow-400', 'bg-red-500',
+            'bg-blue-400', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'
+        ];
+
+        attributes.forEach((attr, idx) => {
+            const angle = (360 / attributes.length) * idx - 90;
+
+            const petalWrapper = document.createElement('div');
+            petalWrapper.className = 'absolute top-1/2 left-1/2 w-[120px] h-[80px] md:w-[180px] md:h-[120px] origin-left flex items-center justify-end pointer-events-none transform-gpu';
+            petalWrapper.style.transform = `translateY(-50%) rotate(${angle}deg)`;
+
+            const petal = document.createElement('div');
+            const colorClass = colors[idx % colors.length];
+            petal.className = `w-full h-full ${colorClass} rounded-full shadow-lg border-4 border-white flex items-center justify-center translate-x-12 md:translate-x-16`;
+            petal.style.borderRadius = "50% 50% 50% 50% / 60% 60% 40% 40%";
+
+            const textSpan = document.createElement('span');
+            textSpan.textContent = attr;
+            textSpan.className = 'text-white font-black text-xl md:text-3xl drop-shadow-md px-2 text-center';
+            textSpan.style.transform = `rotate(${-angle}deg)`;
+
+            petal.appendChild(textSpan);
+            petalWrapper.appendChild(petal);
+            petalsDiv.appendChild(petalWrapper);
+        });
+    }
+
+    function showQuestionReveal(state) {
+        if (state.reveal_setting === 'after_question' && state.current_question) {
+            const correctChoice = state.current_question.choices.find(c => c.is_correct);
+            if (correctChoice) {
+                const center = document.getElementById('flower-center');
+                center.textContent = correctChoice.text;
+                center.classList.remove('bg-white', 'text-slate-900');
+                center.classList.add('bg-emerald-400', 'text-white', 'shadow-[0_0_50px_rgba(52,211,153,0.8)]', 'scale-125');
+            }
+        }
+    }
+
+    function getRankedPlayers(players) {
+        let previousScore = null;
+        let previousRank = 0;
+
+        return players.map((player, index) => {
+            const rank = player.score === previousScore ? previousRank : index + 1;
+            previousScore = player.score;
+            previousRank = rank;
+            return { ...player, rank };
+        });
+    }
+
+    function updateHostUI(state) {
+        if (!state || !state.state) return;
+
+        const playersList = document.getElementById('players-list');
+        document.getElementById('player-count').textContent = state.players.length;
+
+        if (state.state === 'waiting') {
+            document.getElementById('host-header').style.display = 'flex';
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            lastCountdownSoundSecond = null;
+            document.getElementById('host-timer').textContent = '0';
+            document.getElementById('host-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('host-timer-unit').textContent = 'ثانية';
+            document.getElementById('waiting-screen').style.display = 'block';
+            document.getElementById('active-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+            playersList.innerHTML = '';
+            state.players.forEach((player) => {
+                const div = document.createElement('div');
+                div.className = 'theme-card-strong text-slate-100 px-6 py-3 rounded-2xl font-bold animate-[pulse_2s_ease-in-out_1]';
+                div.textContent = player.name;
+                playersList.appendChild(div);
+            });
+            document.getElementById('start-btn').style.display = state.players.length > 0 ? 'block' : 'none';
+            return;
+        }
+
+        if (state.state === 'active') {
+            document.getElementById('host-header').style.display = 'flex';
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('active-screen').style.display = 'block';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+
+            if (state.current_question) {
+                document.getElementById('answer-count').textContent = `${state.answers_count} / ${state.players.length}`;
+                if (state.current_question.id !== currentQuestionId) {
+                    renderHostQuestion(state);
+                }
+
+                if (timerStateKey !== `active-${state.current_question.id}`) {
+                    timerRunningForQuestionId = state.current_question.id;
+                    startTimer(state.remaining_seconds || state.timer, `active-${state.current_question.id}`);
+                }
+            }
+            return;
+        }
+
+        if (state.state === 'revealed') {
+            document.getElementById('host-header').style.display = 'flex';
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('active-screen').style.display = 'block';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+
+            if (state.current_question) {
+                document.getElementById('answer-count').textContent = `${state.answers_count} / ${state.players.length}`;
+                if (state.current_question.id !== currentQuestionId) {
+                    renderHostQuestion(state);
+                }
+                if (timerStateKey !== `revealed-${state.current_question.id}`) {
+                    startTimer(state.remaining_seconds || state.reveal_seconds || 5, `revealed-${state.current_question.id}`);
+                }
+                showQuestionReveal(state);
+            }
+            return;
+        }
+
+        if (state.state === 'finished') {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            lastCountdownSoundSecond = null;
+            document.getElementById('host-timer').textContent = '0';
+            document.getElementById('host-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('host-timer-unit').textContent = 'ثانية';
+            document.getElementById('host-header').style.display = 'none';
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('active-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'block';
+
+            const board = document.getElementById('leaderboard');
+            const winnerSpotlight = document.getElementById('host-winner-spotlight');
+            board.innerHTML = '';
+            const rankedPlayers = getRankedPlayers(state.players);
+            const firstPlacePlayers = rankedPlayers.filter((player) => player.rank === 1);
+            if (firstPlacePlayers.length > 0) {
+                winnerSpotlight.classList.remove('hidden');
+                winnerSpotlight.innerHTML = `
+                    <div class="flex items-center justify-between gap-4 flex-wrap">
+                        <div class="flex items-center gap-3">
+                            <span class="leaderboard-first-badge w-12 h-12 rounded-full bg-amber-200 text-slate-950 border border-amber-100 flex items-center justify-center text-xl font-black">★</span>
+                            <div>
+                                <p class="text-sm font-bold text-slate-400 mb-1">${firstPlacePlayers.length > 1 ? 'المتعادلون في المركز الأول' : 'الفائز بالمركز الأول'}</p>
+                                <p class="text-2xl md:text-3xl font-black text-amber-100">${firstPlacePlayers.map((player) => player.name).join('، ')}</p>
+                            </div>
+                        </div>
+                        <div class="text-left md:text-right">
+                            <p class="text-sm font-bold text-slate-400 mb-1">رصيده</p>
+                            <p class="text-3xl md:text-4xl font-black text-amber-100">${firstPlacePlayers[0].score}</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                winnerSpotlight.classList.add('hidden');
+                winnerSpotlight.innerHTML = '';
+            }
+            rankedPlayers.forEach((player, idx) => {
+                const item = document.createElement('div');
+                const isFirst = player.rank === 1;
+                let rankingClass = 'leaderboard-row flex justify-between items-center p-5 rounded-2xl border transition-all ';
+
+                if (isFirst) {
+                    rankingClass += 'bg-amber-400/12 border-amber-300/40 scale-105 my-6 shadow-[0_0_15px_rgba(184,150,88,0.18)]';
+                } else if (idx === 1) {
+                    rankingClass += 'bg-slate-200/8 border-slate-500/30';
+                } else if (idx === 2) {
+                    rankingClass += 'bg-orange-400/10 border-orange-300/25';
+                } else {
+                    rankingClass += 'bg-slate-900/40 border-slate-700/40';
+                }
+
+                if (isFirst) {
+                    rankingClass += ' leaderboard-first';
+                }
+
+                item.className = rankingClass;
+                item.innerHTML = `
+                    <span class="text-xl font-bold flex items-center gap-3 text-slate-100">
+                        <span class="w-8 h-8 rounded-full ${isFirst ? 'leaderboard-first-badge bg-amber-200 text-slate-950 border border-amber-100' : 'bg-slate-950 border border-slate-700 text-slate-200'} flex items-center justify-center text-sm">${isFirst ? '★' : player.rank}</span>
+                        ${player.name}
+                    </span>
+                    <span class="text-2xl font-black text-amber-100">${player.score} <span class="text-sm font-normal text-slate-400">نقطة</span></span>`;
+                board.appendChild(item);
+            });
+            return;
+        }
+
+        if (state.state === 'cancelled') {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            lastCountdownSoundSecond = null;
+            document.getElementById('host-timer').textContent = '0';
+            document.getElementById('host-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('host-timer-unit').textContent = 'ثانية';
+            document.getElementById('host-header').style.display = 'none';
+            document.getElementById('waiting-screen').style.display = 'none';
+            document.getElementById('active-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'block';
+        }
+    }
+</script>
+{% endblock %}

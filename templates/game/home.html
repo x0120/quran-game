@@ -1,0 +1,59 @@
+{% extends 'game/base.html' %}
+{% block content %}
+<div class="w-full max-w-md mx-auto">
+    <div class="theme-card rounded-3xl p-8 relative overflow-hidden">
+        <div class="theme-glow-top absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="theme-glow-bottom absolute -bottom-24 -left-24 w-48 h-48 rounded-full blur-3xl pointer-events-none"></div>
+
+        <h1 class="theme-title text-3xl md:text-4xl font-black text-center mb-2">صفات الحروف الهجائية</h1>
+        <p class="text-center theme-muted mb-8 font-medium">انضم إلى التحدي أو أنشئ لعبة جديدة</p>
+
+        {% if error_message %}
+        <div class="mb-6 rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-center text-red-200 font-bold">
+            {{ error_message }}
+        </div>
+        {% endif %}
+        
+        <div class="theme-tab-strip flex p-1.5 rounded-xl mb-8 relative z-10 w-full gap-1">
+            <button class="tab-btn theme-tab-btn active w-1/2 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('join', this)">طالب</button>
+            <button class="tab-btn theme-tab-btn w-1/2 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('host', this)">معلم</button>
+        </div>
+
+        <div id="join-tab" class="relative z-10">
+            <form method="post" action="{% url 'home' %}" class="space-y-5">
+                {% csrf_token %}
+                <div>
+                    <label class="block theme-muted text-sm font-bold mb-2">رمز اللعبة (PIN)</label>
+                    <input type="text" name="code" required autocomplete="off" placeholder="مثال: 1234" maxlength="4" inputmode="numeric" class="theme-input w-full p-4 rounded-xl font-black text-center text-2xl tracking-widest transition-all placeholder:font-normal placeholder:tracking-normal placeholder:text-lg">
+                </div>
+                <div>
+                    <label class="block theme-muted text-sm font-bold mb-2">اسم الطالب</label>
+                    <input type="text" name="name" required autocomplete="off" placeholder="اكتب اسمك هنا" class="theme-input w-full p-4 rounded-xl font-bold text-center text-lg transition-all">
+                </div>
+                <button type="submit" class="theme-btn-primary w-full py-4 mt-2 rounded-xl font-black text-xl transition-all">دخول اللعبة</button>
+            </form>
+        </div>
+
+        <div id="host-tab" style="display: none;" class="relative z-10">
+            <div class="text-center py-6">
+                <p class="theme-muted mb-6 leading-relaxed">أنشئ غرفة تحدي جديدة لطلابك واختبر معلوماتهم بطريقة تفاعلية وممتعة.</p>
+                <a href="{% url 'host_setup' %}" class="theme-btn-accent block w-full py-4 rounded-xl font-black text-xl transition-all">إنشاء لعبة جديدة</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tabName, btn) {
+    document.getElementById('join-tab').style.display = 'none';
+    document.getElementById('host-tab').style.display = 'none';
+    
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.className = 'tab-btn theme-tab-btn w-1/2 py-3 text-center rounded-lg font-bold transition-all';
+    });
+    
+    document.getElementById(tabName + '-tab').style.display = 'block';
+    btn.className = 'tab-btn theme-tab-btn active w-1/2 py-3 text-center rounded-lg font-bold transition-all';
+}
+</script>
+{% endblock %}

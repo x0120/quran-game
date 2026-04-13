@@ -1,0 +1,755 @@
+{% extends 'game/base.html' %}
+{% block content %}
+<div class="w-full max-w-2xl mx-auto">
+    <div id="wait-screen" class="theme-card rounded-3xl p-5 sm:p-8 md:p-10 text-center relative overflow-hidden">
+        <div class="theme-glow-top absolute -top-32 -left-32 w-64 h-64 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="relative z-10 flex items-center justify-between gap-3 mb-8">
+            <button type="button" onclick="exitGame()" class="theme-btn-outline px-4 py-2 rounded-xl transition-all font-bold shrink-0">
+                خروج
+            </button>
+            <div class="theme-chip-success px-4 py-2 rounded-xl font-bold shrink-0">
+                نقاطك: <span class="student-score-value">0</span>
+            </div>
+        </div>
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-black text-amber-100 mb-6 drop-shadow-lg leading-tight px-2">أهلاً بك، {{ player.name }}!</h2>
+        <div class="space-y-4 mb-8 px-2">
+            <p class="text-xl text-slate-100 font-bold">أنت الآن في غرفة الانتظار.</p>
+            <p class="theme-muted text-base sm:text-lg">يرجى الانتظار حتى يبدأ المعلم اللعبة...</p>
+        </div>
+        <div class="theme-spinner w-12 h-12 border-4 rounded-full animate-spin mx-auto"></div>
+    </div>
+
+    <div id="play-screen" class="theme-card relative rounded-3xl p-6 md:p-8 transition-opacity duration-300 overflow-hidden" style="display:none;">
+        <div id="student-answer-effects" class="answer-effect-overlay"></div>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4 items-center">
+            <div class="theme-chip-success px-4 py-2 rounded-xl font-bold text-center md:text-right">
+                نقاطك: <span class="student-score-value">0</span>
+            </div>
+            <div id="student-question-progress" class="theme-chip-info hidden col-span-2 md:col-span-1 px-4 py-2 rounded-xl font-bold text-center">
+                السؤال <span id="student-question-number">0</span> من <span id="student-total-questions">0</span>
+            </div>
+            <button type="button" onclick="exitGame()" class="theme-btn-outline px-4 py-2 rounded-xl transition-all font-bold">
+                خروج
+            </button>
+        </div>
+
+        <div class="mb-8 flex justify-center">
+            <div class="theme-card-strong min-w-[110px] rounded-3xl px-7 py-4 text-center">
+                <div id="student-timer-label" class="text-sm font-bold theme-muted mb-2">الوقت المتبقي</div>
+                <div id="student-timer" class="text-4xl md:text-5xl font-black text-amber-100 tabular-nums">0</div>
+                <div id="student-timer-unit" class="text-xs font-bold text-slate-500 mt-2">ثانية</div>
+            </div>
+        </div>
+
+        <div id="student-flower-container" class="relative w-48 h-48 md:w-[350px] md:h-[350px] mx-auto my-12 flex items-center justify-center -mt-2 mb-8 scale-90 md:scale-100">
+            <div id="student-flower-center" class="w-16 h-16 md:w-24 md:h-24 bg-white rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-slate-900 shadow-[0_0_20px_rgba(255,255,255,0.5)] transition-all duration-500">
+                ؟
+            </div>
+            <div id="student-flower-petals" class="absolute inset-0 pointer-events-none"></div>
+        </div>
+
+        <div id="student-answer-summary" class="hidden theme-panel mb-6 rounded-2xl px-5 py-4 text-center">
+            <p class="text-sm font-bold theme-muted mb-3">اختيارك</p>
+            <div class="flex items-center justify-center gap-3">
+                <span id="student-selected-letter" class="w-12 h-12 rounded-2xl bg-blue-500 text-white text-3xl font-black flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.35)]">-</span>
+                <span id="student-selected-status" class="text-base font-bold text-blue-300">بانتظار كشف النتيجة</span>
+            </div>
+            <button type="button" id="student-change-answer" onclick="openChoiceEditor()" class="hidden mt-4 px-4 py-2 rounded-xl border border-blue-400/40 text-blue-300 hover:text-white hover:bg-blue-500/20 transition-all font-bold">
+                تعديل الإجابة
+            </button>
+        </div>
+
+        <p id="student-prompt" class="text-center text-slate-300 font-bold mb-4">اختر الحرف الصحيح:</p>
+        <div class="grid grid-cols-5 md:grid-cols-7 gap-2 md:gap-4" id="student-choices"></div>
+    </div>
+
+    <div id="results-screen" class="theme-card rounded-3xl p-10 text-center" style="display:none;">
+        <div class="theme-card-strong rounded-2xl p-6 mb-8 inline-block">
+            <p class="theme-muted font-bold mb-2">رصيد النقاط</p>
+            <p id="current-score" class="text-5xl font-black text-amber-100 drop-shadow-[0_0_15px_rgba(184,150,88,0.18)]"></p>
+        </div>
+        <div class="theme-spinner w-8 h-8 border-4 rounded-full animate-spin mx-auto"></div>
+    </div>
+
+    <div id="final-screen" class="theme-card rounded-3xl p-10 text-center relative overflow-hidden" style="display:none;">
+        <div class="absolute top-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-teal-200/40 via-white/0 to-white/0 pointer-events-none"></div>
+
+        <h2 class="theme-title text-4xl md:text-6xl font-black mb-4 drop-shadow-md">انتهت اللعبة!</h2>
+        <p class="text-xl md:text-2xl text-slate-100 mb-8">أحسنت يا <strong class="text-amber-100">{{ player.name }}</strong>!</p>
+
+        <div class="theme-card-strong border border-amber-300/18 rounded-3xl p-8 mb-8 transform scale-105 shadow-[0_0_30px_rgba(184,150,88,0.12)] inline-block min-w-[200px]">
+            <p class="text-slate-300 font-bold mb-2">مجموع نقاطك</p>
+            <p class="text-6xl font-black text-amber-100 drop-shadow-[0_0_15px_rgba(184,150,88,0.2)]" id="final-score"></p>
+        </div>
+
+        <div id="student-result-spotlight" class="player-spotlight hidden rounded-3xl p-5 md:p-6 mb-6 text-right"></div>
+        <div id="student-winner-spotlight" class="winner-spotlight hidden rounded-3xl p-5 md:p-6 mb-6 text-right"></div>
+
+        <div class="theme-card-strong rounded-3xl p-5 md:p-6 mb-8 text-right">
+            <div class="flex items-center justify-between gap-3 mb-5">
+                <h3 class="text-xl md:text-2xl font-black text-slate-100">لوحة الترتيب</h3>
+                <div id="student-final-rank-chip" class="theme-chip-info hidden px-4 py-2 rounded-xl font-bold text-sm md:text-base"></div>
+            </div>
+            <div id="student-final-leaderboard" class="space-y-3"></div>
+        </div>
+
+        <a href="{% url 'home' %}" class="theme-btn-outline block w-full py-4 rounded-xl font-black text-xl transition-all">العودة للرئيسية</a>
+    </div>
+
+    <div id="cancelled-screen" class="theme-card rounded-3xl p-10 text-center border border-red-400/20" style="display:none;">
+        <h2 class="text-4xl font-black text-red-200 mb-4">تم إلغاء اللعبة</h2>
+        <p class="text-slate-300 mb-8">أنهى المعلم هذه الجلسة. يمكنك العودة للرئيسية والانضمام إلى غرفة جديدة.</p>
+        <a href="{% url 'exit_game' session.code %}" class="theme-btn-outline block w-full py-4 rounded-xl font-black text-xl transition-all">العودة للرئيسية</a>
+    </div>
+</div>
+
+<script>
+    const sessionCode = "{{ session.code }}";
+    const playerId = "{{ player.id }}";
+    const exitUrl = "{% url 'exit_game' session.code %}";
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const gameSocket = new WebSocket(`${wsScheme}://${window.location.host}/ws/game/${sessionCode}/`);
+
+    let timerInterval = null;
+    let timerStateKey = null;
+    let totalTimer = 0;
+    let answerSubmitted = false;
+    let currentQuestionId = null;
+    let currentSessionState = 'waiting';
+    let studentGuessedChoiceId = null;
+    let resultEffectKey = null;
+    let audioContext = null;
+
+    gameSocket.onopen = function() {
+        gameSocket.send(JSON.stringify({ action: 'student_join', player_id: playerId }));
+    };
+
+    gameSocket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.type === 'state_update') {
+            updateStudentUI(data.state);
+        }
+    };
+
+    function getAudioContext() {
+        if (!window.AudioContext && !window.webkitAudioContext) {
+            return null;
+        }
+
+        if (!audioContext) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioContextClass();
+        }
+
+        if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => {});
+        }
+
+        return audioContext;
+    }
+
+    function unlockAudio() {
+        getAudioContext();
+    }
+
+    window.addEventListener('pointerdown', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('keydown', unlockAudio, { once: true });
+
+    function exitGame() {
+        if (gameSocket.readyState === WebSocket.OPEN) {
+            gameSocket.send(JSON.stringify({ action: 'leave_game', player_id: playerId }));
+        }
+        setTimeout(() => {
+            window.location.href = exitUrl;
+        }, 120);
+    }
+
+    function updateScoreDisplays(score) {
+        document.querySelectorAll('.student-score-value').forEach((node) => {
+            node.textContent = score;
+        });
+        document.getElementById('current-score').textContent = score;
+        document.getElementById('final-score').textContent = score;
+    }
+
+    function updateQuestionProgress(state) {
+        const progress = document.getElementById('student-question-progress');
+        const questionNumber = document.getElementById('student-question-number');
+        const totalQuestions = document.getElementById('student-total-questions');
+        const shouldShow = ['active', 'revealed'].includes(state.state) && state.current_question_number && state.total_questions;
+
+        if (!shouldShow) {
+            progress.classList.add('hidden');
+            return;
+        }
+
+        questionNumber.textContent = state.current_question_number;
+        totalQuestions.textContent = state.total_questions;
+        progress.classList.remove('hidden');
+    }
+
+    function getRankedPlayers(players) {
+        let previousScore = null;
+        let previousRank = 0;
+
+        return players.map((player, index) => {
+            const rank = player.score === previousScore ? previousRank : index + 1;
+            previousScore = player.score;
+            previousRank = rank;
+            return { ...player, rank };
+        });
+    }
+
+    function renderStudentFinalLeaderboard(state) {
+        const leaderboard = document.getElementById('student-final-leaderboard');
+        const rankChip = document.getElementById('student-final-rank-chip');
+        const resultSpotlight = document.getElementById('student-result-spotlight');
+        const winnerSpotlight = document.getElementById('student-winner-spotlight');
+        leaderboard.innerHTML = '';
+        const rankedPlayers = getRankedPlayers(state.players);
+
+        let myRank = null;
+        let myPlayer = null;
+
+        rankedPlayers.forEach((player, index) => {
+            if (player.id === parseInt(playerId, 10)) {
+                myRank = player.rank;
+                myPlayer = player;
+            }
+
+            const row = document.createElement('div');
+            const isMe = player.id === parseInt(playerId, 10);
+            const isFirst = player.rank === 1;
+            let rowClass = 'leaderboard-row flex items-center justify-between gap-3 rounded-2xl border px-4 py-4 transition-all ';
+
+            if (isFirst) {
+                rowClass += 'bg-amber-400/12 border-amber-300/40 shadow-[0_0_18px_rgba(184,150,88,0.16)]';
+            } else if (isMe) {
+                rowClass += 'bg-slate-100/10 border-slate-300/25';
+            } else {
+                rowClass += 'bg-slate-950/35 border-slate-700/40';
+            }
+
+            if (isFirst) {
+                rowClass += ' leaderboard-first';
+            }
+            if (isMe) {
+                rowClass += ' leaderboard-self';
+            }
+
+            row.className = rowClass;
+            row.innerHTML = `
+                <div class="flex items-center gap-3 min-w-0">
+                    <span class="w-9 h-9 shrink-0 rounded-full ${isFirst ? 'leaderboard-first-badge bg-amber-200 text-slate-950 border border-amber-100' : 'bg-slate-950 border border-slate-700 text-slate-200'} flex items-center justify-center text-sm font-black">${isFirst ? '★' : player.rank}</span>
+                    <span class="text-base md:text-lg font-bold ${isMe ? 'leaderboard-self-name' : 'text-slate-100'} truncate">${player.name}</span>
+                    ${isMe ? '<span class="leaderboard-you-pill px-3 py-1 rounded-full text-xs font-black shrink-0">أنت</span>' : ''}
+                </div>
+                <span class="text-lg md:text-2xl font-black text-amber-100 shrink-0">${player.score} <span class="text-xs md:text-sm font-normal text-slate-400">نقطة</span></span>
+            `;
+            leaderboard.appendChild(row);
+        });
+
+        if (myRank) {
+            const isTied = rankedPlayers.filter((player) => player.rank === myRank).length > 1;
+            rankChip.textContent = `ترتيبك: ${myRank}`;
+            rankChip.classList.remove('hidden');
+            resultSpotlight.classList.remove('hidden');
+            resultSpotlight.innerHTML = `
+                <div class="flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                        <p class="text-sm font-bold text-slate-400 mb-2">نتيجتك النهائية</p>
+                        <p class="text-2xl md:text-3xl font-black text-amber-100">أنت في المركز ${myRank}${isTied ? ' (تعادل)' : ''}</p>
+                        <p class="text-slate-300 mt-2 font-bold">${myPlayer ? myPlayer.name : ''}</p>
+                    </div>
+                    <div class="text-left md:text-right">
+                        <p class="text-sm font-bold text-slate-400 mb-2">مجموع نقاطك</p>
+                        <p class="text-3xl md:text-4xl font-black text-amber-100">${myPlayer ? myPlayer.score : 0}</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            rankChip.classList.add('hidden');
+            resultSpotlight.classList.add('hidden');
+            resultSpotlight.innerHTML = '';
+        }
+
+        const firstPlacePlayers = rankedPlayers.filter((player) => player.rank === 1);
+        if (firstPlacePlayers.length > 0) {
+            winnerSpotlight.classList.remove('hidden');
+            winnerSpotlight.innerHTML = `
+                <div class="flex items-center justify-between gap-4 flex-wrap">
+                    <div class="flex items-center gap-3">
+                        <span class="leaderboard-first-badge w-12 h-12 rounded-full bg-amber-200 text-slate-950 border border-amber-100 flex items-center justify-center text-xl font-black">★</span>
+                        <div>
+                            <p class="text-sm font-bold text-slate-400 mb-1">${firstPlacePlayers.length > 1 ? 'المتعادلون في المركز الأول' : 'الفائز بالمركز الأول'}</p>
+                            <p class="text-2xl md:text-3xl font-black text-amber-100">${firstPlacePlayers.map((player) => player.name).join('، ')}</p>
+                        </div>
+                    </div>
+                    <div class="text-left md:text-right">
+                        <p class="text-sm font-bold text-slate-400 mb-1">رصيده</p>
+                        <p class="text-3xl md:text-4xl font-black text-amber-100">${firstPlacePlayers[0].score}</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            winnerSpotlight.classList.add('hidden');
+            winnerSpotlight.innerHTML = '';
+        }
+    }
+
+    function updateChangeAnswerVisibility() {
+        const button = document.getElementById('student-change-answer');
+        const shouldShow = currentSessionState === 'active' && answerSubmitted;
+        button.classList.toggle('hidden', !shouldShow);
+    }
+
+    function startTimer(seconds, timerKey) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        timerStateKey = timerKey;
+        totalTimer = seconds;
+        const timerDisplay = document.getElementById('student-timer');
+        const timerLabel = document.getElementById('student-timer-label');
+        const timerUnit = document.getElementById('student-timer-unit');
+        let current = seconds;
+        const isRevealTimer = timerKey && timerKey.startsWith('revealed-');
+        timerLabel.textContent = isRevealTimer ? 'السؤال التالي بعد' : 'الوقت المتبقي';
+        timerUnit.textContent = 'ثانية';
+        timerDisplay.textContent = current;
+
+        timerInterval = setInterval(() => {
+            current--;
+            timerDisplay.textContent = Math.max(current, 0);
+            if (current <= 0) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                const finishedKey = timerStateKey;
+                timerStateKey = null;
+                if (finishedKey && finishedKey.startsWith('active-') && !answerSubmitted) {
+                    submitAnswer(null, null);
+                } else {
+                    gameSocket.send(JSON.stringify({ action: 'request_state' }));
+                }
+            }
+        }, 1000);
+    }
+
+    function resetAnswerSummary() {
+        const summary = document.getElementById('student-answer-summary');
+        summary.className = 'hidden theme-panel mb-6 rounded-2xl px-5 py-4 text-center';
+        document.getElementById('student-selected-letter').textContent = '-';
+        document.getElementById('student-selected-letter').className = 'w-12 h-12 rounded-2xl bg-blue-500 text-white text-3xl font-black flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.35)]';
+        document.getElementById('student-selected-status').textContent = 'بانتظار كشف النتيجة';
+        document.getElementById('student-selected-status').className = 'text-base font-bold text-blue-300';
+        updateChangeAnswerVisibility();
+    }
+
+    function showAnswerSummary(letter, statusText, tone) {
+        const summary = document.getElementById('student-answer-summary');
+        const letterBadge = document.getElementById('student-selected-letter');
+        const status = document.getElementById('student-selected-status');
+
+        summary.className = 'theme-panel mb-6 rounded-2xl px-5 py-4 text-center';
+        letterBadge.textContent = letter || '—';
+        status.textContent = statusText;
+
+        if (tone === 'correct') {
+            letterBadge.className = 'w-12 h-12 rounded-2xl bg-emerald-500 text-white text-3xl font-black flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.35)]';
+            status.className = 'text-base font-bold text-emerald-300';
+        } else if (tone === 'wrong') {
+            letterBadge.className = 'w-12 h-12 rounded-2xl bg-red-500 text-white text-3xl font-black flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.35)]';
+            status.className = 'text-base font-bold text-red-300';
+        } else if (tone === 'missed') {
+            letterBadge.className = 'w-12 h-12 rounded-2xl bg-slate-600 text-white text-2xl font-black flex items-center justify-center';
+            status.className = 'text-base font-bold text-slate-300';
+        } else {
+            letterBadge.className = 'w-12 h-12 rounded-2xl bg-blue-500 text-white text-3xl font-black flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.35)]';
+            status.className = 'text-base font-bold text-blue-300';
+        }
+
+        updateChangeAnswerVisibility();
+    }
+
+    function openChoiceEditor() {
+        if (currentSessionState !== 'active') return;
+        answerSubmitted = false;
+        gameSocket.send(JSON.stringify({
+            action: 'clear_answer',
+            player_id: playerId
+        }));
+        document.getElementById('student-choices').style.display = 'grid';
+        document.getElementById('student-prompt').style.display = 'block';
+        document.getElementById('student-selected-status').textContent = 'عدّل اختيارك قبل انتهاء الوقت';
+        document.getElementById('student-selected-status').className = 'text-base font-bold text-blue-300';
+        updateChangeAnswerVisibility();
+    }
+
+    function clearAnswerEffects() {
+        const effectLayer = document.getElementById('student-answer-effects');
+        const center = document.getElementById('student-flower-center');
+        const petals = document.getElementById('student-flower-petals');
+
+        effectLayer.innerHTML = '';
+        effectLayer.classList.remove('correct', 'wrong');
+        center.classList.remove('answer-center-correct', 'answer-center-wrong');
+        petals.classList.remove('answer-petals-correct', 'answer-petals-wrong');
+    }
+
+    function playResultSound(type) {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const master = ctx.createGain();
+        master.gain.setValueAtTime(0.0001, now);
+        master.connect(ctx.destination);
+
+        if (type === 'correct') {
+            const notes = [523.25, 659.25, 783.99];
+            notes.forEach((frequency, index) => {
+                const startAt = now + (index * 0.1);
+                const endAt = startAt + 0.32;
+
+                const oscMain = ctx.createOscillator();
+                const oscBright = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                oscMain.type = 'triangle';
+                oscBright.type = 'square';
+                oscMain.frequency.setValueAtTime(frequency, startAt);
+                oscBright.frequency.setValueAtTime(frequency * 2, startAt);
+
+                gain.gain.setValueAtTime(0.0001, startAt);
+                gain.gain.linearRampToValueAtTime(0.12, startAt + 0.04);
+                gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                oscMain.connect(gain);
+                oscBright.connect(gain);
+                gain.connect(master);
+
+                oscMain.start(startAt);
+                oscBright.start(startAt);
+                oscMain.stop(endAt);
+                oscBright.stop(endAt);
+            });
+        } else {
+            const steps = [
+                { frequency: 246.94, duration: 0.16 },
+                { frequency: 196.00, duration: 0.18 },
+                { frequency: 146.83, duration: 0.26 },
+            ];
+
+            let offset = 0;
+            steps.forEach((step, index) => {
+                const startAt = now + offset;
+                const endAt = startAt + step.duration;
+                const oscMain = ctx.createOscillator();
+                const oscLow = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                oscMain.type = 'square';
+                oscLow.type = 'triangle';
+                oscMain.frequency.setValueAtTime(step.frequency, startAt);
+                oscLow.frequency.setValueAtTime(step.frequency / 2, startAt);
+
+                gain.gain.setValueAtTime(0.0001, startAt);
+                gain.gain.linearRampToValueAtTime(index === 2 ? 0.11 : 0.09, startAt + 0.025);
+                gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+
+                oscMain.connect(gain);
+                oscLow.connect(gain);
+                gain.connect(master);
+
+                oscMain.start(startAt);
+                oscLow.start(startAt);
+                oscMain.stop(endAt);
+                oscLow.stop(endAt);
+
+                offset += step.duration + 0.03;
+            });
+        }
+
+        master.gain.linearRampToValueAtTime(1.15, now + 0.02);
+        master.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+    }
+
+    function renderStudentQuestion(state) {
+        currentQuestionId = state.current_question.id;
+        answerSubmitted = false;
+        studentGuessedChoiceId = null;
+        resultEffectKey = null;
+        clearAnswerEffects();
+        resetAnswerSummary();
+
+        document.getElementById('student-choices').style.display = 'grid';
+        document.getElementById('student-prompt').style.display = 'block';
+
+        const center = document.getElementById('student-flower-center');
+        center.textContent = '؟';
+        center.className = 'w-16 h-16 md:w-24 md:h-24 bg-white rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-slate-900 shadow-[0_0_20px_rgba(255,255,255,0.5)] transition-all duration-500';
+
+        const attributes = state.current_question.text.split('،').map(s => s.trim());
+        const petalsDiv = document.getElementById('student-flower-petals');
+        petalsDiv.innerHTML = '';
+
+        const colors = [
+            'bg-pink-500', 'bg-yellow-400', 'bg-red-500',
+            'bg-blue-400', 'bg-green-500', 'bg-purple-500', 'bg-orange-500'
+        ];
+
+        attributes.forEach((attr, idx) => {
+            const angle = (360 / attributes.length) * idx - 90;
+
+            const petalWrapper = document.createElement('div');
+            petalWrapper.className = 'absolute top-1/2 left-1/2 w-[90px] h-[60px] origin-left flex items-center justify-end pointer-events-none transform-gpu md:w-[120px] md:h-[80px]';
+            petalWrapper.style.transform = `translateY(-50%) rotate(${angle}deg)`;
+
+            const petal = document.createElement('div');
+            const colorClass = colors[idx % colors.length];
+            petal.className = `w-full h-full ${colorClass} rounded-full shadow border-2 border-white flex items-center justify-center translate-x-10 md:translate-x-12`;
+            petal.style.borderRadius = "50% 50% 50% 50% / 60% 60% 40% 40%";
+
+            const textSpan = document.createElement('span');
+            textSpan.textContent = attr;
+            textSpan.className = 'text-white font-black text-[13px] md:text-lg drop-shadow px-1 text-center leading-tight';
+            textSpan.style.transform = `rotate(${-angle}deg)`;
+
+            petal.appendChild(textSpan);
+            petalWrapper.appendChild(petal);
+            petalsDiv.appendChild(petalWrapper);
+        });
+
+        const choicesDiv = document.getElementById('student-choices');
+        choicesDiv.innerHTML = '';
+
+        state.current_question.choices.forEach((choice) => {
+            const btn = document.createElement('button');
+            btn.className = 'w-full aspect-square bg-slate-950/70 border-2 border-amber-300/18 hover:bg-slate-900/80 hover:border-amber-300/45 text-slate-100 rounded-xl md:rounded-2xl font-black text-2xl md:text-3xl transition-all shadow-[0_12px_28px_rgba(2,6,14,0.34)] flex items-center justify-center';
+            btn.textContent = choice.text;
+            btn.onclick = () => submitAnswer(choice.id, btn);
+            choicesDiv.appendChild(btn);
+        });
+    }
+
+    function renderSubmittedSelection(answer) {
+        if (!answer) return;
+
+        answerSubmitted = true;
+        studentGuessedChoiceId = answer.choice_id;
+        document.getElementById('student-choices').style.display = 'none';
+        document.getElementById('student-prompt').style.display = 'none';
+        showAnswerSummary(answer.choice_text, 'تم تثبيت إجابتك ويمكنك تعديلها قبل انتهاء الوقت', 'pending');
+
+        const center = document.getElementById('student-flower-center');
+        center.textContent = answer.choice_text;
+        center.className = 'w-16 h-16 md:w-24 md:h-24 rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-white bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all duration-300 scale-110';
+    }
+
+    function triggerAnswerEffect(type) {
+        const effectLayer = document.getElementById('student-answer-effects');
+        const center = document.getElementById('student-flower-center');
+        const petals = document.getElementById('student-flower-petals');
+        clearAnswerEffects();
+        playResultSound(type);
+        effectLayer.classList.add(type);
+
+        const badge = document.createElement('div');
+        badge.className = `answer-effect-badge ${type}`;
+        badge.textContent = type === 'correct' ? 'إجابة صحيحة!' : 'إجابة خاطئة';
+        effectLayer.appendChild(badge);
+
+        const flash = document.createElement('div');
+        flash.className = `answer-effect-flash ${type}`;
+        effectLayer.appendChild(flash);
+
+        for (let index = 0; index < 14; index++) {
+            const particle = document.createElement('span');
+            const angle = (Math.PI * 2 * index) / 14;
+            const distance = type === 'correct' ? 145 : 105;
+            particle.className = `answer-effect-particle ${type}`;
+            particle.style.setProperty('--tx', `${Math.cos(angle) * distance}px`);
+            particle.style.setProperty('--ty', `${Math.sin(angle) * distance}px`);
+            particle.style.animationDelay = `${index * 28}ms`;
+            effectLayer.appendChild(particle);
+        }
+
+        void center.offsetWidth;
+        center.classList.add(type === 'correct' ? 'answer-center-correct' : 'answer-center-wrong');
+        petals.classList.add(type === 'correct' ? 'answer-petals-correct' : 'answer-petals-wrong');
+
+        setTimeout(() => {
+            clearAnswerEffects();
+        }, 1400);
+    }
+
+    function submitAnswer(choiceId, btnElement) {
+        if (answerSubmitted) return;
+        answerSubmitted = true;
+        studentGuessedChoiceId = choiceId;
+
+        const timeRemaining = parseFloat(document.getElementById('student-timer').textContent) || 0;
+        let timeTaken = totalTimer - timeRemaining;
+        if (isNaN(timeTaken)) timeTaken = 0;
+
+        if (btnElement) {
+            renderSubmittedSelection({ choice_id: choiceId, choice_text: btnElement.textContent });
+        } else {
+            document.getElementById('student-choices').style.display = 'none';
+            document.getElementById('student-prompt').style.display = 'none';
+            showAnswerSummary('—', 'انتهى الوقت قبل الإجابة', 'missed');
+        }
+
+        gameSocket.send(JSON.stringify({
+            action: 'submit_answer',
+            player_id: playerId,
+            choice_id: choiceId,
+            time_taken: timeTaken
+        }));
+    }
+
+    function showStudentResult(state) {
+        document.getElementById('student-choices').style.display = 'none';
+        document.getElementById('student-prompt').style.display = 'none';
+
+        const myAnswer = state.my_answer;
+        if (myAnswer) {
+            studentGuessedChoiceId = myAnswer.choice_id;
+            showAnswerSummary(
+                myAnswer.choice_text,
+                myAnswer.is_correct ? 'إجابة صحيحة' : 'إجابة غير صحيحة',
+                myAnswer.is_correct ? 'correct' : 'wrong'
+            );
+        } else {
+            studentGuessedChoiceId = null;
+            showAnswerSummary('—', 'لم تُسجِّل إجابة في هذا السؤال', 'missed');
+        }
+
+        const center = document.getElementById('student-flower-center');
+        if (state.reveal_setting !== 'after_question' || !state.current_question) {
+            if (myAnswer) {
+                center.textContent = myAnswer.choice_text;
+                center.className = 'w-16 h-16 md:w-24 md:h-24 rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-white bg-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all duration-300 scale-110';
+            }
+            return;
+        }
+
+        const correctChoice = state.current_question.choices.find(c => c.is_correct);
+        if (!correctChoice) return;
+
+        center.textContent = correctChoice.text;
+        if (myAnswer && myAnswer.choice_id === correctChoice.id) {
+            center.className = 'w-16 h-16 md:w-24 md:h-24 rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-white bg-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.8)] transition-all duration-500 scale-125';
+            if (resultEffectKey !== `correct-${state.current_question.id}`) {
+                resultEffectKey = `correct-${state.current_question.id}`;
+                triggerAnswerEffect('correct');
+            }
+        } else {
+            center.className = 'w-16 h-16 md:w-24 md:h-24 rounded-full z-10 flex items-center justify-center text-4xl md:text-6xl font-black text-white bg-red-500 shadow-[0_0_30px_rgba(239,68,68,0.8)] transition-all duration-500 scale-125';
+            if (resultEffectKey !== `wrong-${state.current_question.id}`) {
+                resultEffectKey = `wrong-${state.current_question.id}`;
+                triggerAnswerEffect('wrong');
+            }
+        }
+    }
+
+    function updateStudentUI(state) {
+        if (!state || !state.state) return;
+        currentSessionState = state.state;
+        updateQuestionProgress(state);
+
+        const myPlayerData = state.players.find(p => p.id === parseInt(playerId, 10));
+        const score = myPlayerData ? myPlayerData.score : 0;
+        updateScoreDisplays(score);
+
+        if (state.state === 'waiting') {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            document.getElementById('student-timer').textContent = '0';
+            document.getElementById('student-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('student-timer-unit').textContent = 'ثانية';
+            document.getElementById('wait-screen').style.display = 'block';
+            document.getElementById('play-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+            return;
+        }
+
+        if (state.state === 'active') {
+            document.getElementById('wait-screen').style.display = 'none';
+            document.getElementById('play-screen').style.display = 'block';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+
+            if (state.current_question) {
+                if (state.current_question.id !== currentQuestionId) {
+                    renderStudentQuestion(state);
+                }
+
+                if (state.my_answer) {
+                    renderSubmittedSelection(state.my_answer);
+                }
+
+                if (timerStateKey !== `active-${state.current_question.id}`) {
+                    startTimer(state.remaining_seconds || state.timer, `active-${state.current_question.id}`);
+                }
+
+                if (!state.my_answer && !answerSubmitted) {
+                    resetAnswerSummary();
+                }
+            }
+            return;
+        }
+
+        if (state.state === 'revealed') {
+            document.getElementById('wait-screen').style.display = 'none';
+            document.getElementById('play-screen').style.display = 'block';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'none';
+
+            if (state.current_question && state.current_question.id !== currentQuestionId) {
+                renderStudentQuestion(state);
+            }
+            if (state.current_question && timerStateKey !== `revealed-${state.current_question.id}`) {
+                startTimer(state.remaining_seconds || state.reveal_seconds, `revealed-${state.current_question.id}`);
+            }
+            showStudentResult(state);
+            return;
+        }
+
+        if (state.state === 'finished') {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            document.getElementById('student-timer').textContent = '0';
+            document.getElementById('student-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('student-timer-unit').textContent = 'ثانية';
+            document.getElementById('wait-screen').style.display = 'none';
+            document.getElementById('play-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'block';
+            document.getElementById('cancelled-screen').style.display = 'none';
+            renderStudentFinalLeaderboard(state);
+            return;
+        }
+
+        if (state.state === 'cancelled') {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerStateKey = null;
+            document.getElementById('student-timer').textContent = '0';
+            document.getElementById('student-timer-label').textContent = 'الوقت المتبقي';
+            document.getElementById('student-timer-unit').textContent = 'ثانية';
+            document.getElementById('wait-screen').style.display = 'none';
+            document.getElementById('play-screen').style.display = 'none';
+            document.getElementById('results-screen').style.display = 'none';
+            document.getElementById('final-screen').style.display = 'none';
+            document.getElementById('cancelled-screen').style.display = 'block';
+        }
+    }
+</script>
+{% endblock %}
