@@ -8,6 +8,7 @@ from django.utils import timezone
 from .models import AnswerChoice, GameSession, Player, PlayerAnswer, Question
 
 REVEAL_SECONDS = 10
+POINTS_PER_CORRECT_ANSWER = 1
 
 
 class GameConsumer(AsyncWebsocketConsumer):
@@ -251,7 +252,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             )
 
         if previous_correct != choice.is_correct:
-            player.score += 100 if choice.is_correct else -100
+            player.score += POINTS_PER_CORRECT_ANSWER if choice.is_correct else -POINTS_PER_CORRECT_ANSWER
             player.save(update_fields=['score'])
 
     @database_sync_to_async
@@ -282,7 +283,7 @@ class GameConsumer(AsyncWebsocketConsumer):
             return
 
         if existing_answer.is_correct:
-            player.score -= 100
+            player.score -= POINTS_PER_CORRECT_ANSWER
             player.save(update_fields=['score'])
 
         existing_answer.delete()

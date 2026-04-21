@@ -27,6 +27,7 @@ class GameSession(models.Model):
     teacher_session_key = models.CharField(max_length=100)
     game = models.ForeignKey(GameTemplate, on_delete=models.CASCADE)
     code = models.CharField(max_length=4, unique=True)
+    mode = models.CharField(max_length=20, default='multiplayer')
     state = models.CharField(max_length=20, default='waiting') # waiting, active, revealed, finished, cancelled
     current_question_index = models.IntegerField(default=0)
     timer_seconds = models.IntegerField(default=30)

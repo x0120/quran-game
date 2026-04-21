@@ -55,6 +55,16 @@ class GameViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Player.objects.filter(session=self.session, name='سارة').exists())
 
+    def test_solo_session_cannot_be_joined_from_home_code_flow(self):
+        self.session.mode = 'solo'
+        self.session.save(update_fields=['mode'])
+
+        response = self.client.post(reverse('home'), {'code': self.session.code, 'name': 'سارة'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'رمز اللعبة غير صحيح أو أن هذه الغرفة لم تعد متاحة.')
+        self.assertFalse(Player.objects.filter(session=self.session, name='سارة').exists())
+
     def test_exit_game_marks_player_disconnected_and_clears_session(self):
         player = Player.objects.create(session=self.session, name='ليان')
         session = self.client.session
@@ -106,6 +116,51 @@ class GameViewsTests(TestCase):
         self.assertRedirects(response, reverse('host_dashboard', args=[created_session.code]))
         self.assertEqual(created_session.selected_letters, ['ب', 'ت'])
         self.assertEqual(len(created_session.code), 4)
+        self.assertEqual(created_session.mode, 'multiplayer')
+
+    def test_solo_game_creates_active_solo_session_and_player(self):
+        session = self.client.session
+        session.create()
+        session.save()
+
+        response = self.client.post(reverse('solo_game'), {'name': 'سارة'})
+
+        created_session = GameSession.objects.exclude(id=self.session.id).get()
+        player = created_session.players.get()
+        self.assertRedirects(response, reverse('play_game', args=[created_session.code]))
+        self.assertEqual(created_session.mode, 'solo')
+        self.assertEqual(created_session.state, 'active')
+        self.assertEqual(player.name, 'سارة')
+        self.assertTrue(created_session.question_order)
+        self.assertEqual(self.client.session['player_id'], player.id)
+
+    def test_solo_game_can_use_specific_letters(self):
+        session = self.client.session
+        session.create()
+        session.save()
+
+        response = self.client.post(reverse('solo_game'), {
+            'name': 'مها',
+            'letter_mode': 'specific',
+            'selected_letters': ['ا', 'ت'],
+        })
+
+        created_session = GameSession.objects.exclude(id=self.session.id).get()
+        self.assertRedirects(response, reverse('play_game', args=[created_session.code]))
+        self.assertEqual(created_session.selected_letters, ['ا', 'ت'])
+
+    def test_solo_game_requires_at_least_one_specific_letter(self):
+        session = self.client.session
+        session.create()
+        session.save()
+
+        response = self.client.post(reverse('solo_game'), {
+            'name': 'مها',
+            'letter_mode': 'specific',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'اختر حرفاً واحداً على الأقل لبدء اللعب الفردي.')
 
     def test_student_can_change_answer_before_reveal(self):
         player = Player.objects.create(session=self.session, name='نور')
@@ -130,7 +185,7 @@ class GameViewsTests(TestCase):
         answer.refresh_from_db()
         self.assertEqual(answer.selected_choice_id, correct_choice.id)
         self.assertTrue(answer.is_correct)
-        self.assertEqual(player.score, 100)
+        self.assertEqual(player.score, 1)
 
     def test_clearing_answer_removes_saved_choice_and_score(self):
         player = Player.objects.create(session=self.session, name='سندس')

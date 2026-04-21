@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.crypto import get_random_string
+from django.utils import timezone
 from .models import GameTemplate, GameSession, Player
 
 
@@ -21,12 +22,22 @@ def generate_session_code():
 
 def home(request):
     error_message = None
+    initial_tab = request.GET.get('tab', 'join')
+    game_template = GameTemplate.objects.first()
+    available_letters = get_available_letters(game_template) if game_template else []
+    solo_selected_letter_mode = 'all'
+    solo_selected_letters = []
     if request.method == 'POST':
         # Student joining
         code = request.POST.get('code', '').strip()
         name = request.POST.get('name', '').strip()
         if code and name:
-            session = GameSession.objects.exclude(state__in=['finished', 'cancelled']).filter(code=code).first()
+            session = (
+                GameSession.objects
+                .exclude(state__in=['finished', 'cancelled'])
+                .filter(code=code, mode='multiplayer')
+                .first()
+            )
             if session:
                 existing_player = Player.objects.filter(session=session, name=name).first()
                 current_player_id = request.session.get('player_id')
@@ -45,7 +56,13 @@ def home(request):
                     return redirect('play_game', session_code=code)
             else:
                 error_message = 'رمز اللعبة غير صحيح أو أن هذه الغرفة لم تعد متاحة.'
-    return render(request, 'game/home.html', {'error_message': error_message})
+    return render(request, 'game/home.html', {
+        'error_message': error_message,
+        'initial_tab': initial_tab,
+        'available_letters': available_letters,
+        'solo_selected_letter_mode': solo_selected_letter_mode,
+        'solo_selected_letters': solo_selected_letters,
+    })
 
 def host_setup(request):
     game_template = GameTemplate.objects.first()
@@ -81,6 +98,7 @@ def host_setup(request):
             teacher_session_key=request.session.session_key,
             game=game_template,
             code=code,
+            mode='multiplayer',
             timer_seconds=int(timer),
             reveal_answer_setting=reveal_setting,
             selected_letters=selected_letters,
@@ -97,6 +115,66 @@ def host_setup(request):
 def host_dashboard(request, session_code):
     session = get_object_or_404(GameSession, code=session_code)
     return render(request, 'game/host.html', {'session': session})
+
+
+def solo_game(request):
+    if request.method != 'POST':
+        return redirect('home')
+
+    name = request.POST.get('name', '').strip()
+    letter_mode = request.POST.get('letter_mode', 'all')
+    if not name:
+        return render(request, 'game/home.html', {
+            'error_message': 'اكتب اسمك أولاً لبدء اللعب الفردي.',
+            'initial_tab': 'solo',
+            'available_letters': get_available_letters(GameTemplate.objects.first()) if GameTemplate.objects.first() else [],
+            'solo_selected_letter_mode': letter_mode,
+            'solo_selected_letters': request.POST.getlist('selected_letters'),
+        })
+
+    game_template = GameTemplate.objects.first()
+    if not game_template:
+        return render(request, 'game/error.html', {'message': 'لم يتم العثور على اللعبة - الرجاء إضافة الأسئلة أولاً'})
+
+    available_letters = get_available_letters(game_template)
+    if not available_letters:
+        return render(request, 'game/error.html', {'message': 'لا توجد أسئلة متاحة حالياً للعب الفردي.'})
+
+    if letter_mode == 'specific':
+        selected_letters = [letter for letter in available_letters if letter in request.POST.getlist('selected_letters')]
+        if not selected_letters:
+            return render(request, 'game/home.html', {
+                'error_message': 'اختر حرفاً واحداً على الأقل لبدء اللعب الفردي.',
+                'initial_tab': 'solo',
+                'available_letters': available_letters,
+                'solo_selected_letter_mode': 'specific',
+                'solo_selected_letters': selected_letters,
+            })
+    else:
+        selected_letters = available_letters[:]
+
+    if not request.session.session_key:
+        request.session.create()
+
+    now = timezone.now()
+    code = generate_session_code()
+    solo_session = GameSession.objects.create(
+        teacher_session_key=request.session.session_key,
+        game=game_template,
+        code=code,
+        mode='solo',
+        state='active',
+        timer_seconds=30,
+        reveal_answer_setting='after_question',
+        selected_letters=selected_letters,
+        started_at=now,
+        question_started_at=now,
+    )
+    solo_session.ensure_question_order()
+
+    player = Player.objects.create(session=solo_session, name=name, is_connected=True)
+    request.session['player_id'] = player.id
+    return redirect('play_game', session_code=solo_session.code)
 
 def play_game(request, session_code):
     session = get_object_or_404(GameSession, code=session_code)

@@ -6,7 +6,7 @@
         <div class="theme-glow-bottom absolute -bottom-24 -left-24 w-48 h-48 rounded-full blur-3xl pointer-events-none"></div>
 
         <h1 class="theme-title text-3xl md:text-4xl font-black text-center mb-2">صفات الحروف الهجائية</h1>
-        <p class="text-center theme-muted mb-8 font-medium">انضم إلى التحدي أو أنشئ لعبة جديدة</p>
+        <p class="text-center theme-muted mb-8 font-medium">انضم إلى التحدي أو العب منفرداً أو أنشئ لعبة جديدة</p>
 
         {% if error_message %}
         <div class="mb-6 rounded-2xl border border-red-400/30 bg-red-500/10 px-5 py-4 text-center text-red-200 font-bold">
@@ -15,8 +15,9 @@
         {% endif %}
         
         <div class="theme-tab-strip flex p-1.5 rounded-xl mb-8 relative z-10 w-full gap-1">
-            <button class="tab-btn theme-tab-btn active w-1/2 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('join', this)">طالب</button>
-            <button class="tab-btn theme-tab-btn w-1/2 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('host', this)">معلم</button>
+            <button class="tab-btn theme-tab-btn active w-1/3 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('join', this)">طالب</button>
+            <button class="tab-btn theme-tab-btn w-1/3 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('solo', this)">فردي</button>
+            <button class="tab-btn theme-tab-btn w-1/3 py-3 text-center rounded-lg font-bold transition-all" onclick="showTab('host', this)">معلم</button>
         </div>
 
         <div id="join-tab" class="relative z-10">
@@ -27,7 +28,7 @@
                     <input type="text" name="code" required autocomplete="off" placeholder="مثال: 1234" maxlength="4" inputmode="numeric" class="theme-input w-full p-4 rounded-xl font-black text-center text-2xl tracking-widest transition-all placeholder:font-normal placeholder:tracking-normal placeholder:text-lg">
                 </div>
                 <div>
-                    <label class="block theme-muted text-sm font-bold mb-2">اسم الطالب</label>
+                    <label class="block theme-muted text-sm font-bold mb-2">الاسم</label>
                     <input type="text" name="name" required autocomplete="off" placeholder="اكتب اسمك هنا" class="theme-input w-full p-4 rounded-xl font-bold text-center text-lg transition-all">
                 </div>
                 <button type="submit" class="theme-btn-primary w-full py-4 mt-2 rounded-xl font-black text-xl transition-all">دخول اللعبة</button>
@@ -40,20 +41,98 @@
                 <a href="{% url 'host_setup' %}" class="theme-btn-accent block w-full py-4 rounded-xl font-black text-xl transition-all">إنشاء لعبة جديدة</a>
             </div>
         </div>
+
+        <div id="solo-tab" style="display: none;" class="relative z-10">
+            <form method="post" action="{% url 'solo_game' %}" class="space-y-5">
+                {% csrf_token %}
+                <div>
+                    <label class="block theme-muted text-sm font-bold mb-2">الاسم</label>
+                    <input type="text" name="name" required autocomplete="off" placeholder="اكتب اسمك هنا" class="theme-input w-full p-4 rounded-xl font-bold text-center text-lg transition-all">
+                </div>
+                <div class="space-y-4">
+                    <label class="block theme-muted text-sm font-bold">الحروف الموجودة في اللعب الفردي</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="letter_mode" value="all" class="peer sr-only" {% if solo_selected_letter_mode != 'specific' %}checked{% endif %} onchange="toggleSoloLetterMode()">
+                            <div class="theme-panel rounded-2xl px-4 py-4 text-center font-bold text-slate-300 transition-all peer-checked:border-amber-300/50 peer-checked:bg-amber-400/10 peer-checked:text-amber-100">
+                                جميع الحروف
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="letter_mode" value="specific" class="peer sr-only" {% if solo_selected_letter_mode == 'specific' %}checked{% endif %} onchange="toggleSoloLetterMode()">
+                            <div class="theme-panel rounded-2xl px-4 py-4 text-center font-bold text-slate-300 transition-all peer-checked:border-slate-300/40 peer-checked:bg-slate-200/10 peer-checked:text-slate-100">
+                                حروف محددة
+                            </div>
+                        </label>
+                    </div>
+
+                    <div id="solo-letter-picker" class="theme-panel rounded-3xl p-4 space-y-4 {% if solo_selected_letter_mode != 'specific' %}hidden{% endif %}">
+                        <div class="flex items-center justify-between gap-3">
+                            <p class="text-sm font-bold theme-muted">اختر الحروف التي تريدها في الجولة الفردية</p>
+                            <button type="button" onclick="toggleAllSoloLetters(true)" class="text-xs font-bold text-amber-200 hover:text-white transition-colors">تحديد الكل</button>
+                        </div>
+                        <div class="grid grid-cols-6 sm:grid-cols-7 gap-2">
+                            {% for letter in available_letters %}
+                            <label class="cursor-pointer">
+                                <input type="checkbox" name="selected_letters" value="{{ letter }}" class="peer sr-only solo-letter-checkbox" {% if letter in solo_selected_letters %}checked{% endif %}>
+                                <div class="aspect-square rounded-2xl border border-slate-700 bg-slate-950/70 text-slate-300 text-2xl font-black flex items-center justify-center transition-all peer-checked:border-amber-300/60 peer-checked:bg-amber-400/12 peer-checked:text-amber-100">
+                                    {{ letter }}
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="theme-panel rounded-2xl p-4 text-center">
+                    <p class="text-slate-100 font-bold mb-2">وضع اللعب الفردي</p>
+                    <p class="theme-muted text-sm leading-relaxed">ابدأ الجولة مباشرة بدون معلم. ستظهر لك النتيجة النهائية في نهاية التحدي.</p>
+                </div>
+                <button type="submit" class="theme-btn-primary w-full py-4 mt-2 rounded-xl font-black text-xl transition-all">ابدأ اللعب الفردي</button>
+            </form>
+        </div>
     </div>
 </div>
 
 <script>
+const initialTab = "{{ initial_tab|default:'join' }}";
+let previousSoloLetterMode = document.querySelector('#solo-tab input[name="letter_mode"]:checked')?.value || 'all';
+
 function showTab(tabName, btn) {
     document.getElementById('join-tab').style.display = 'none';
     document.getElementById('host-tab').style.display = 'none';
+    document.getElementById('solo-tab').style.display = 'none';
     
     document.querySelectorAll('.tab-btn').forEach(el => {
-        el.className = 'tab-btn theme-tab-btn w-1/2 py-3 text-center rounded-lg font-bold transition-all';
+        el.className = 'tab-btn theme-tab-btn w-1/3 py-3 text-center rounded-lg font-bold transition-all';
     });
     
     document.getElementById(tabName + '-tab').style.display = 'block';
-    btn.className = 'tab-btn theme-tab-btn active w-1/2 py-3 text-center rounded-lg font-bold transition-all';
+    btn.className = 'tab-btn theme-tab-btn active w-1/3 py-3 text-center rounded-lg font-bold transition-all';
 }
+
+function toggleSoloLetterMode() {
+    const isSpecific = document.querySelector('#solo-tab input[name="letter_mode"]:checked')?.value === 'specific';
+    document.getElementById('solo-letter-picker').classList.toggle('hidden', !isSpecific);
+    if (isSpecific && previousSoloLetterMode !== 'specific') {
+        toggleAllSoloLetters(false);
+    }
+    previousSoloLetterMode = isSpecific ? 'specific' : 'all';
+}
+
+function toggleAllSoloLetters(checked) {
+    document.querySelectorAll('.solo-letter-checkbox').forEach((checkbox) => {
+        checkbox.checked = checked;
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (initialTab && initialTab !== 'join') {
+        const target = document.querySelector(`.tab-btn[onclick*="'${initialTab}'"]`);
+        if (target) {
+            showTab(initialTab, target);
+        }
+    }
+    toggleSoloLetterMode();
+});
 </script>
 {% endblock %}
